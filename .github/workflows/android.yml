@@ -3,6 +3,10 @@ name: Build Android APK
 on:
   workflow_dispatch: # ボタンを押して手動でビルドを開始する設定
 
+env:
+  # 💡 警告への対策：GitHubのアクションを強制的に最新のNode.js 24環境で実行させます
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +32,7 @@ jobs:
           # Androidアプリの設定ファイルを自動書き換え
           sed -i 's/title = My Application/title = MRC/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = mrc_app/' buildozer.spec
+          # 💡 エラーへの対策：アセットにjpgも含めて、不要なkvやatlasを最初から除外してエラーを防ぎます
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg/' buildozer.spec
           sed -i 's/#requirements = python3,kivy/requirements = python3,kivy==2.3.0,pillow,reportlab/' buildozer.spec
           sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
