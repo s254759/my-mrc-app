@@ -3,24 +3,25 @@ name: Build Android APK
 on:
   workflow_dispatch: # ボタンを押して手動でビルドを開始する設定
 
+env:
+  # 💡 警告・エラーへの完全対策：GitHubランナーに対し、すべてのJavaScriptアクションをNode.js 24で動かすよう最上位で宣言します
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 💡 修正点1: クラウド環境を最新のv4ネイティブかつNode.js 24対応版でチェックアウト
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 💡 修正点2: Python環境を最新のNode.js 24互換版でセットアップ
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 💡 修正点3: Androidビルドに必要なJava 17環境を確実に構築
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
