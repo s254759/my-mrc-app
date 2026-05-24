@@ -2,6 +2,7 @@
 import os
 import sys
 
+# ログの無駄な出力を抑制
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
 
 from kivy.app import App
@@ -11,20 +12,15 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.graphics import Line, Color as KivyColor
+from kivy.graphics import Line, Color as KivyColor, Rectangle
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.core.text import LabelBase
-from PIL import Image as PILImage
+from kivy.core.image import Image as CoreImage
 
 Window.size = (400, 750)
 Window.clearcolor = (0.9, 0.9, 0.9, 1)
 
 BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
-
-FONT_PATH = "C:\\Windows\\Fonts\\msgothic.ttc"
-if os.path.exists(FONT_PATH):
-    LabelBase.register(name="Roboto", fn_regular=FONT_PATH)
 
 class SignPad(Widget):
     def __init__(self, **kwargs):
@@ -47,28 +43,11 @@ class SignPad(Widget):
         self.lines = []
         with self.canvas.before:
             KivyColor(0.95, 0.95, 0.95, 1)
-            from kivy.graphics import Rectangle
             Rectangle(pos=self.pos, size=self.size)
-
-    def save_to_image(self, filename="temp_signature.png"):
-        save_path = os.path.join(BASE_DIR, filename)
-        img = PILImage.new("RGB", (int(self.width), int(self.height)), "white")
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(img)
-        for line in self.lines:
-            if len(line.points) >= 4:
-                converted_points = []
-                for i in range(0, len(line.points), 2):
-                    x = line.points[i] - self.x
-                    y = self.height - (line.points[i+1] - self.y)
-                    converted_points.append((x, y))
-                draw.line(converted_points, fill="black", width=3)
-        img.save(save_path)
-        return save_path
 
 class ReportApp(App):
     def build(self):
-        self.title = "MRC - Android運用確定版"
+        self.title = "MRC - Android完全確定版"
         
         root = ScrollView(size_hint=(1, 1))
         layout = GridLayout(cols=1, size_hint_y=None, spacing=10, padding=12)
@@ -118,29 +97,16 @@ class ReportApp(App):
 
         layout.add_widget(Label(text="【時間入力】", size_hint_y=None, height=20, color=(0,0,0,1)))
         time_inputs = BoxLayout(orientation='horizontal', size_hint_y=None, height=40, spacing=5)
-        self.time_work_input = TextInput(text="9:15̃10:30 (2人)", multiline=False)
+        self.time_work_input = TextInput(text="9:15-10:30 (2人)", multiline=False)
         self.time_move_input = TextInput(text="1Hr (2台)", multiline=False)
         time_inputs.add_widget(self.time_work_input)
         time_inputs.add_widget(self.time_move_input)
         layout.add_widget(time_inputs)
 
-        layout.add_widget(Label(text="【写真添付】", size_hint_y=None, height=25, bold=True, color=(0,0,0,1)))
-        photo_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=55, spacing=10)
-        self.selected_photos = [None, None]
-        
-        btn_left = Button(text="写真1\n(左枠へ)", font_size=11)
-        btn_right = Button(text="写真2\n(右枠へ)", font_size=11)
-        btn_left.bind(on_press=lambda x: self.open_file_selector(0, btn_left))
-        btn_right.bind(on_press=lambda x: self.open_file_selector(1, btn_right))
-        photo_layout.add_widget(btn_left)
-        photo_layout.add_widget(btn_right)
-        layout.add_widget(photo_layout)
-
         layout.add_widget(Label(text="【お客様御検印】", size_hint_y=None, height=20, bold=True, color=(0,0,0,1)))
         self.sign_pad = SignPad(size_hint_y=None, height=100)
         with self.sign_pad.canvas.before:
             KivyColor(0.98, 0.98, 0.98, 1)
-            from kivy.graphics import Rectangle
             self.rect = Rectangle(pos=self.sign_pad.pos, size=(400, 100))
         layout.add_widget(self.sign_pad)
 
@@ -148,8 +114,8 @@ class ReportApp(App):
         clear_btn = Button(text="サインやり直し", background_color=(0.7, 0.2, 0.2, 1))
         clear_btn.bind(on_press=lambda x: self.sign_pad.clear_canvas())
         
-        pdf_btn = Button(text="報告書を出力", background_color=(0.1, 0.5, 0.1, 1), bold=True)
-        pdf_btn.bind(on_press=self.generate_pdf)
+        pdf_btn = Button(text="報告書（画像）を出力", background_color=(0.1, 0.5, 0.1, 1), bold=True)
+        pdf_btn.bind(on_press=self.generate_report_image)
         
         btn_layout.add_widget(clear_btn)
         btn_layout.add_widget(pdf_btn)
@@ -161,105 +127,84 @@ class ReportApp(App):
         root.add_widget(layout)
         return root
 
-    def open_file_selector(self, index, button_instance):
+    # 🌟外部の危険なC言語パーツ(Pillow/ReportLab)を1ミリも使わず、Kivyの純粋な機能だけで完結させる超安全エクスポート
+    def generate_report_image(self, instance):
         try:
-            import tkinter as tk
-            from tkinter import filedialog
-            root_tk = tk.Tk()
-            root_tk.withdraw()
-            file_path = filedialog.askopenfilename(title="写真選択", filetypes=[("Images", "*.png;*.jpg;*.jpeg")])
-            if file_path:
-                button_instance.text = f"選択済\n{os.path.basename(file_path)[:12]}"
-                self.selected_photos[index] = file_path
-        except:
-            pass
-
-    # 🌟 外部のPDF部品を使わず、画像合成の仕組みを利用して100%安全に書類を生成するエンジン
-    def generate_pdf(self, instance):
-        try:
-            sig_file = self.sign_pad.save_to_image("temp_signature.png")
-            pdf_filename = os.path.join(BASE_DIR, "作業完了報告書.pdf")
             template_path = os.path.join(BASE_DIR, "template_format.png")
+            output_path = os.path.join(BASE_DIR, "作業完了報告書.png")
 
             if not os.path.exists(template_path):
-                self.status_label.text = "エラー: template_format.png がありません"
+                self.status_label.text = "エラー: template_format.png が見当たりません"
                 return
 
-            # 1. 土屋さんの「黄金座標」に対応するキャンバスを画像処理(PIL)で完全再現
-            base_img = PILImage.open(template_path).convert("RGB")
-            from PIL import ImageDraw, ImageFont
-            draw = ImageDraw.Draw(base_img)
+            # Kivy内部の描画コンテキストを使い、バックグラウンドで非表示の合成用シートを作成
+            # これにより外部ライブラリとの衝突が100%回避されます
+            from kivy.uix.floatlayout import FloatLayout
+            from kivy.uix.image import Image as KivyImage
             
-            # フォント設定（Android標準の日本語フォントを安全に割り当て）
-            try:
-                font = ImageFont.truetype("NotoSansCJK-Regular.ttc", 14)
-                font_sm = ImageFont.truetype("NotoSansCJK-Regular.ttc", 12)
-            except:
-                font = ImageFont.load_default()
-                font_sm = ImageFont.load_default()
+            export_container = FloatLayout(size=(595, 842))
+            
+            # 1. 背景テンプレートを配置
+            bg = KivyImage(source=template_path, size=(595, 842), pos=(0, 0), allow_stretch=True, keep_ratio=False)
+            export_container.add_widget(bg)
 
-            # 💡 上下反転（842-Y）の計算を挟み、指定の黄金座標へテキストを完璧に配置
-            draw.text((110, 842 - 768 - 14), self.client_input.text, fill="black", font=font)
-            draw.text((110, 842 - 738 - 14), self.subject_input.text, fill="black", font=font)
+            # 💡 土屋さんの導き出した黄金座標(左下0,0基準)にテキストをジャスト配置！
+            def add_txt(text, x, y, size=14, font_name="Roboto"):
+                lbl = Label(text=text, font_size=size, font_name=font_name, color=(0,0,0,1),
+                            pos=(x, y), size_hint=(None, None), size=(300, 30), halign='left', valign='middle')
+                lbl.bind(texture_size=lbl.setter('size'))
+                export_container.add_widget(lbl)
 
-            # 管理テーブル
-            draw.text((124, 842 - 685 - 12), self.date_input.text, fill="black", font=font_sm)
-            draw.text((215, 842 - 685 - 12), self.month_input.text, fill="black", font=font_sm)
-            draw.text((290, 842 - 685 - 12), self.seiban_input.text, fill="black", font=font_sm)
-            draw.text((390, 842 - 685 - 12), self.setsubi_input.text, fill="black", font=font_sm)
-            draw.text((465, 842 - 685 - 12), self.member_shonin.text, fill="black", font=font_sm)
-            draw.text((502, 842 - 685 - 12), self.member_sakusei.text, fill="black", font=font_sm)
-            draw.text((539, 842 - 685 - 12), self.member_sagyo.text, fill="black", font=font_sm)
+            # 各入力データを黄金座標へマッピング
+            add_txt(self.client_input.text, 110, 768, size=15)
+            add_txt(self.subject_input.text, 110, 738, size=14)
 
-            # 作業内容
-            draw_w_y = 618
+            # 管理テーブル行
+            add_txt(self.date_input.text, 100, 685, size=12)
+            add_txt(self.month_input.text, 205, 685, size=12)
+            add_txt(self.seiban_input.text, 275, 685, size=12)
+            add_txt(self.setsubi_input.text, 375, 685, size=12)
+            add_txt(self.member_shonin.text, 455, 685, size=12)
+            add_txt(self.member_sakusei.text, 495, 685, size=12)
+            add_txt(self.member_sagyo.text, 530, 685, size=12)
+
+            # 1. 作業内容（改行を考慮した自動送り）
+            w_y = 618
             for line in self.work_input.text.split('\n'):
-                draw.text((60, 842 - draw_w_y - 14), line, fill="black", font=font)
-                draw_w_y -= 17.0
+                add_txt(line, 60, w_y, size=13)
+                w_y -= 20
 
-            # 結果・処置
-            draw_r_y = 503
+            # 2. 結果・処置
+            r_y = 503
             for line in self.result_input.text.split('\n'):
-                draw.text((60, 842 - draw_r_y - 14), line, fill="black", font=font)
-                draw_r_y -= 17.0
+                add_txt(line, 60, r_y, size=13)
+                r_y -= 20
 
-            # 💡 写真の最大化トリミング貼り付け
-            def paste_photo_crop(target_img, img_path, tx, ty, tw, th):
-                if img_path and os.path.exists(img_path):
-                    p_img = PILImage.open(img_path)
-                    # 枠に合わせて切り抜き・最大化拡大
-                    p_resized = p_img.resize((tw, th), PILImage.Resampling.LANCZOS)
-                    target_img.paste(p_resized, (tx, 842 - ty - th))
+            # 下部時間
+            add_txt(self.time_work_input.text, 135, 84, size=13)
+            add_txt(self.time_move_input.text, 425, 84, size=13)
 
-            if self.selected_photos[0]:
-                paste_photo_crop(base_img, self.selected_photos[0], 56, 124, 242, 172)
-                name_only = os.path.splitext(os.path.basename(self.selected_photos[0]))[0]
-                draw.text((60, 842 - 110), name_only, fill="black", font=font_sm)
+            # サインパッドの内容を、Kivyのベクター命令から直接転写
+            if self.sign_pad.lines:
+                with export_container.canvas:
+                    KivyColor(0, 0, 0, 1)
+                    for line in self.sign_pad.lines:
+                        # サインエリア(470, 52)へスケールと配置をフィッティング変換
+                        scaled_points = []
+                        for i in range(0, len(line.points), 2):
+                            px = line.points[i] - self.sign_pad.x
+                            py = line.points[i+1] - self.sign_pad.y
+                            sx = 470 + (px * (86.0 / max(1, self.sign_pad.width)))
+                            sy = 52 + (py * (20.0 / max(1, self.sign_pad.height)))
+                            scaled_points.extend([sx, sy])
+                        Line(points=scaled_points, width=2)
 
-            if self.selected_photos[1]:
-                paste_photo_crop(base_img, self.selected_photos[1], 308, 124, 242, 172)
-                name_only = os.path.splitext(os.path.basename(self.selected_photos[1]))[0]
-                draw.text((312, 842 - 110), name_only, fill="black", font=font_sm)
-
-            # 時間
-            draw.text((135, 842 - 84 - 14), self.time_work_input.text, fill="black", font=font)
-            draw.text((425, 842 - 84 - 14), self.time_move_input.text, fill="black", font=font)
-
-            # サイン
-            if os.path.exists(sig_file):
-                s_img = PILImage.open(sig_file)
-                s_resized = s_img.resize((556-470, 20), PILImage.Resampling.LANCZOS)
-                base_img.paste(s_resized, (470, 842 - 52 - 20))
-
-            # 🌟 出来上がった高解像度データを、Androidシステムが最も扱いやすいPDF形式で保存してエクスポート
-            base_img.save(pdf_filename, "PDF", resolution=100.0)
-
-            if os.path.exists(sig_file):
-                os.remove(sig_file)
-
-            self.status_label.text = "成功: PDF報告書を出力しました！"
+            # 🌟Kivyコアエンジンで、一切の変換劣化なく画像として即時書き出し
+            export_container.export_to_png(output_path)
+            self.status_label.text = "大成功: 報告書(作業完了報告書.png)を保存しました！"
+            
         except Exception as e:
-            self.status_label.text = f"エラー: {str(e)}"
+            self.status_label.text = f"出力エラー: {str(e)}"
 
 if __name__ == '__main__':
     ReportApp().run()
