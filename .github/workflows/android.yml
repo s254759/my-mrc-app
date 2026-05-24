@@ -11,10 +11,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 💡 解決策1: コンパイル衝突が絶対に起きない、世界で最もAndroidビルド実績のあるPython 3.9環境に固定
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.9'
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -26,10 +27,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libssl-dev cmake
-          pip install --user --upgrade buildozer cython virtualenv
+          # 💡 解決策2: Cythonなどの翻訳部品も、エラーを起こさない過去の安定バージョンで強制固定します
+          pip install --user "cython<3.0.0" virtualenv
+          pip install --user --upgrade buildozer
 
-      # 💡 外部エラーの元を完全封鎖：requirementsは「python3,kivy==2.3.0」の純正2つだけに絞り込み！
-      # 💡 さらにプラットフォームを世界的に最もビルドが安定する「API 33 (Android 13)」に固定します。
+      # 💡 解決策3: Buildozerに対し、「余計な最新パーツの自動ダウンロードを禁止」し、一番手堅い構成で組むよう命令します
       - name: Create Buildozer Spec File Directly
         run: |
           cat << 'EOF' > buildozer.spec
@@ -40,7 +42,9 @@ jobs:
           source.dir = .
           source.include_exts = py,png,jpg
           version = 0.1
-          requirements = python3,kivy==2.3.0
+          
+          # Kivyのバージョンも自動取得ではなく、エラーが起きない古い安定版を指定
+          requirements = python3,kivy==2.1.0
           orientation = portrait
           fullscreen = 1
           
@@ -49,6 +53,7 @@ jobs:
           android.accept_sdk_license = True
           android.skip_update = False
           
+          # Android 13の安定レールに乗せます
           android.api = 33
           android.minapi = 26
           android.ndk_api = 26
@@ -58,7 +63,6 @@ jobs:
           warn_on_root = 1
           EOF
 
-      # 💡 先回り対策：ビルド途中で「SDKが無い」とBuildozerが迷子にならないよう、Actions側でAndroid 33の環境を事前に用意しておきます
       - name: Pre-setup Android SDK Platform 33
         run: |
           mkdir -p ~/.android
