@@ -3,50 +3,39 @@ name: Build Android APK
 on:
   workflow_dispatch: # ボタンを押して手動でビルドを開始する設定
 
-env:
-  # 💡 警告・エラーへの完全対策：GitHubランナーに対し、すべてのJavaScriptアクションをNode.js 24で動かすよう最上位で宣言します
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    # 💡 完璧なビルド環境が最初から整っている「公式イメージ」をそのまま丸ごと使います
+    container:
+      image: ghcr.io/kivy/buildozer:latest
+
     steps:
+      # 1. コードの読み込み
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install Buildozer and Dependencies
+      # 2. 不足しているPython用のアドオンライブラリ（PDFや画像処理）だけを追加
+      - name: Install Additional Python Packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libssl-dev cmake
-          pip install --user --upgrade buildozer cython virtualenv
+          pip3 install --user pillow reportlab
 
-      - name: Initialize Buildozer
+      # 3. buildozer.spec（設定ファイル）の初期化と自動書き換え
+      - name: Configure Buildozer Specification
         run: |
-          ~/.local/bin/buildozer init
-          # Androidアプリの設定ファイルを自動書き換え
+          buildozer init
           sed -i 's/title = My Application/title = MRC/' buildozer.spec
           sed -i 's/package.name = myapp/package.name = mrc_app/' buildozer.spec
           sed -i 's/source.include_exts = py,png,jpg,kv,atlas/source.include_exts = py,png,jpg/' buildozer.spec
           sed -i 's/#requirements = python3,kivy/requirements = python3,kivy==2.3.0,pillow,reportlab/' buildozer.spec
           sed -i 's/#android.accept_sdk_license = False/android.accept_sdk_license = True/' buildozer.spec
 
-      - name: Build Android APK
-        run: ~/.local/bin/buildozer -v android debug
+      # 4. Android APKの組み立て実行
+      - name: Build with Buildozer
+        run: buildozer -v android debug
 
+      # 5. 完成したAPKファイルを画面からダウンロードできるようにアップロード
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
