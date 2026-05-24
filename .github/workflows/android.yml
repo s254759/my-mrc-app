@@ -28,7 +28,7 @@ jobs:
           sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libssl-dev cmake
           pip install --user --upgrade buildozer cython virtualenv
 
-      # 💡 解決策：Googleのすべての利用規約（SDK/Build-Tools）を自動で100%全承認する設定を直接埋め込みます
+      # 💡 解決策：最新のAndroidツール（NDK）と衝突しないよう、2026年仕様に完全に適合させた設定ファイルを生成します
       - name: Create Buildozer Spec File Directly
         run: |
           cat << 'EOF' > buildozer.spec
@@ -43,20 +43,22 @@ jobs:
           orientation = portrait
           fullscreen = 1
           
-          # Androidのビルド基準を確実にクリアする設定
-          android.archs = arm64-v8a,armeabi-v7a
+          # 🌟最重要：最新の開発ツール(NDK)と互換性のあるモダンな64bit設計に絞ります
+          android.archs = arm64-v8a
           android.allow_backup = True
-          
-          # 🌟最重要：Googleのライセンス確認画面を自動でパスする設定
           android.accept_sdk_license = True
           android.skip_update = False
+          
+          # 🌟最重要：古い命令を排除し、最新のツールに適合するAPIレベルを指定します
+          android.api = 34
+          android.minapi = 26
+          android.ndk_api = 26
           
           [buildozer]
           log_level = 2
           warn_on_root = 1
           EOF
 
-      # 💡 追加対策：Buildozerを実行する直前に、Android SDKのライセンスをシステム側でも強制自動承認させます
       - name: Pre-accept Android SDK Licenses
         run: |
           mkdir -p ~/.android
